@@ -1,0 +1,124 @@
+{
+  "components": [
+    {
+      "id": "chat_1",
+      "provider": "chat",
+      "config": {
+        "hideForm": true,
+        "mode": "Source",
+        "parameters": {},
+        "type": "chat"
+      },
+      "ui": {
+        "position": { "x": 20, "y": 200 },
+        "measured": { "width": 150, "height": 66 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "agent_rocketride_1",
+      "provider": "agent_rocketride",
+      "config": {
+        "agent_description": "MedGraph clinical AI that queries a Neo4j patient graph spanning multiple healthcare institutions to answer clinical questions, detect drug-allergy conflicts, and surface care gaps.",
+        "instructions": [
+          "You are MedGraph AI — a clinical intelligence assistant with direct access to a Neo4j patient graph spanning multiple healthcare institutions.",
+          "Patient records from different hospitals are linked via SAME_AS edges for cross-institutional identity resolution.",
+          "Use the db_neo4j tool to query patient medications, allergies, encounters, observations, and conditions via Cypher.",
+          "Key node labels: Patient, Encounter, Medication, Condition, Allergy, Observation, Institution.",
+          "Key relationships: HAS_ENCOUNTER, PRESCRIBED, HAS_ALLERGY, HAS_CONDITION, AT_INSTITUTION, SAME_AS, INTERACTS_WITH.",
+          "Always flag drug-allergy conflicts with ⚠️. Cite which institution each piece of data came from. Be concise — clinicians are busy."
+        ],
+        "max_waves": 10,
+        "parameters": {}
+      },
+      "input": [
+        { "lane": "questions", "from": "chat_1" }
+      ],
+      "ui": {
+        "position": { "x": 240, "y": 200 },
+        "measured": { "width": 150, "height": 86 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "response_answers_1",
+      "provider": "response_answers",
+      "config": { "laneName": "answers" },
+      "input": [
+        { "lane": "answers", "from": "agent_rocketride_1" }
+      ],
+      "ui": {
+        "position": { "x": 460, "y": 200 },
+        "measured": { "width": 150, "height": 66 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "llm_anthropic_1",
+      "provider": "llm_anthropic",
+      "config": {
+        "profile": "claude-sonnet-4-6",
+        "claude-sonnet-4-6": {
+          "apikey": "${ROCKETRIDE_ANTHROPIC_KEY}"
+        },
+        "parameters": {}
+      },
+      "control": [
+        { "classType": "llm", "from": "agent_rocketride_1" },
+        { "classType": "llm", "from": "db_neo4j_1" }
+      ],
+      "ui": {
+        "position": { "x": 130, "y": 390 },
+        "measured": { "width": 150, "height": 66 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "memory_internal_1",
+      "provider": "memory_internal",
+      "config": { "type": "memory_internal" },
+      "control": [
+        { "classType": "memory", "from": "agent_rocketride_1" }
+      ],
+      "ui": {
+        "position": { "x": 300, "y": 390 },
+        "measured": { "width": 150, "height": 66 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    },
+    {
+      "id": "db_neo4j_1",
+      "provider": "db_neo4j",
+      "config": {
+        "profile": "default",
+        "default": {
+          "uri": "bolt://localhost:7687",
+          "auth_method": "userpass",
+          "user": "neo4j",
+          "password": "${ROCKETRIDE_NEO4J_PASSWORD}",
+          "database": "neo4j",
+          "db_description": "MedGraph patient graph. Contains Patient, Encounter, Medication, Condition, Allergy, and Observation nodes across multiple healthcare institutions. Patients from different hospitals are linked via SAME_AS edges for cross-institutional identity resolution. Key relationships: HAS_ENCOUNTER, PRESCRIBED, HAS_ALLERGY, HAS_CONDITION, AT_INSTITUTION, SAME_AS, INTERACTS_WITH.",
+          "max_attempts": 5
+        },
+        "parameters": {}
+      },
+      "control": [
+        { "classType": "tool", "from": "agent_rocketride_1" }
+      ],
+      "ui": {
+        "position": { "x": 470, "y": 390 },
+        "measured": { "width": 150, "height": 66 },
+        "nodeType": "default",
+        "formDataValid": true
+      }
+    }
+  ],
+  "project_id": "a3f1c2d4-8e5b-4f7a-9c6d-2b0e1f3a5c8d",
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "version": 1
+}

@@ -1,0 +1,165 @@
+{
+  "resourceType": "Bundle",
+  "id": "hospital-a-bundle",
+  "institution": "Northwestern Memorial Hospital",
+  "institution_id": "org-northwestern",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-nwm-001",
+        "name": [{ "family": "Rivera", "given": ["Maria", "Elena"] }],
+        "birthDate": "1978-04-12",
+        "gender": "female",
+        "address": [{ "postalCode": "60614", "city": "Chicago", "state": "IL" }],
+        "telecom": [{ "system": "phone", "value": "312-555-0192" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-nwm-001",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "period": { "start": "2024-03-15", "end": "2024-03-15" },
+        "type": "outpatient",
+        "reasonCode": "Annual checkup",
+        "participant": [{ "individual": { "display": "Dr. James Patel", "id": "prov-nwm-001" } }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-nwm-002",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "period": { "start": "2024-09-22", "end": "2024-09-22" },
+        "type": "outpatient",
+        "reasonCode": "COPD follow-up",
+        "participant": [{ "individual": { "display": "Dr. James Patel", "id": "prov-nwm-001" } }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-nwm-001",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "code": { "coding": [{ "system": "ICD-10", "code": "J44.1", "display": "COPD with acute exacerbation" }] },
+        "onsetDateTime": "2022-06-10",
+        "clinicalStatus": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-nwm-002",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "code": { "coding": [{ "system": "ICD-10", "code": "I10", "display": "Hypertension" }] },
+        "onsetDateTime": "2020-01-15",
+        "clinicalStatus": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-nwm-001",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-002" },
+        "medicationCodeableConcept": {
+          "coding": [{ "system": "RxNorm", "code": "1546356", "display": "Albuterol 90mcg inhaler" }]
+        },
+        "status": "active",
+        "authoredOn": "2024-09-22",
+        "requester": { "display": "Dr. James Patel" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-nwm-002",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-001" },
+        "medicationCodeableConcept": {
+          "coding": [{ "system": "RxNorm", "code": "29046", "display": "Lisinopril 10mg" }]
+        },
+        "status": "active",
+        "authoredOn": "2024-03-15",
+        "requester": { "display": "Dr. James Patel" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "id": "allergy-nwm-001",
+        "patient": { "reference": "Patient/patient-nwm-001" },
+        "code": { "coding": [{ "system": "RxNorm", "code": "7980", "display": "Penicillin" }] },
+        "reaction": [{ "description": "Anaphylaxis", "severity": "severe" }],
+        "recordedDate": "2019-08-05"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-001",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-001" },
+        "code": { "coding": [{ "system": "LOINC", "code": "8480-6", "display": "Systolic Blood Pressure" }] },
+        "valueQuantity": { "value": 132, "unit": "mmHg" },
+        "effectiveDateTime": "2023-09-10"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-005",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-001" },
+        "code": { "coding": [{ "system": "LOINC", "code": "8480-6", "display": "Systolic Blood Pressure" }] },
+        "valueQuantity": { "value": 138, "unit": "mmHg" },
+        "effectiveDateTime": "2023-12-15"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-006",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-001" },
+        "code": { "coding": [{ "system": "LOINC", "code": "8480-6", "display": "Systolic Blood Pressure" }] },
+        "valueQuantity": { "value": 143, "unit": "mmHg" },
+        "effectiveDateTime": "2024-03-15"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-007",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-002" },
+        "code": { "coding": [{ "system": "LOINC", "code": "59408-5", "display": "Oxygen Saturation (SpO2)" }] },
+        "valueQuantity": { "value": 96, "unit": "%" },
+        "effectiveDateTime": "2023-06-01"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-008",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-002" },
+        "code": { "coding": [{ "system": "LOINC", "code": "59408-5", "display": "Oxygen Saturation (SpO2)" }] },
+        "valueQuantity": { "value": 94, "unit": "%" },
+        "effectiveDateTime": "2023-12-15"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-nwm-002",
+        "subject": { "reference": "Patient/patient-nwm-001" },
+        "encounter": { "reference": "Encounter/enc-nwm-002" },
+        "code": { "coding": [{ "system": "LOINC", "code": "59408-5", "display": "Oxygen Saturation (SpO2)" }] },
+        "valueQuantity": { "value": 91, "unit": "%" },
+        "effectiveDateTime": "2024-09-22"
+      }
+    }
+  ]
+}

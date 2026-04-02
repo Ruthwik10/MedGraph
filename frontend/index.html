@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MedGraph — Graph-Powered Patient Interoperability</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Synthetic data ──────────────────────────────────────────────────────────
+const PATIENTS = [
+  { id: "john_smith_001", name: "John D. Smith", dob: "1978-04-12", gender: "M", zip: "60614",
+    nodes: [
+      { id: "p1", label: "Patient", name: "John D. Smith", institution: "Hospital A", mrn: "MRN-001", x: 400, y: 280 },
+      { id: "p2", label: "Patient", name: "J. Smith", institution: "Hospital B", mrn: "MRN-774", x: 600, y: 180 },
+      { id: "p3", label: "Patient", name: "John D. Smith", institution: "Clinic C", mrn: "MRN-CC-92", x: 600, y: 380 },
+      { id: "e1", label: "Encounter", name: "ER Visit", date: "2024-01-15", type: "ER", x: 220, y: 180 },
+      { id: "e2", label: "Encounter", name: "Outpatient", date: "2023-08-22", type: "Outpatient", x: 220, y: 380 },
+      { id: "e3", label: "Encounter", name: "Inpatient", date: "2022-11-03", type: "Inpatient", x: 760, y: 280 },
+      { id: "i1", label: "Institution", name: "Northwestern Memorial", x: 100, y: 100 },
+      { id: "i2", label: "Institution", name: "Rush University Med", x: 100, y: 460 },
+      { id: "i3", label: "Institution", name: "DePaul Clinic", x: 900, y: 200 },
+      { id: "m1", label: "Medication", name: "Lisinopril 10mg", status: "active", x: 280, y: 480 },
+      { id: "m2", label: "Medication", name: "K-Supplement 20mEq", status: "active", x: 520, y: 500 },
+      { id: "m3", label: "Medication", name: "Metformin 500mg", status: "active", x: 760, y: 480 },
+      { id: "c1", label: "Condition", name: "Hypertension", icd: "I10", x: 140, y: 280 },
+      { id: "c2", label: "Condition", name: "Type 2 Diabetes", icd: "E11.9", x: 760, y: 100 },
+      { id: "a1", label: "Allergy", name: "Penicillin", reaction: "Anaphylaxis", severity: "HIGH", x: 500, y: 100 },
+      { id: "l1", label: "Lab", name: "HbA1c 7.8%", loinc: "4548-4", date: "2024-01-15", x: 900, y: 380 },
+    ],
+    edges: [
+      { from: "p1", to: "p2", rel: "SAME_AS" }, { from: "p1", to: "p3", rel: "SAME_AS" },
+      { from: "p1", to: "e1", rel: "HAD_ENCOUNTER" }, { from: "p1", to: "e2", rel: "HAD_ENCOUNTER" },
+      { from: "p2", to: "e3", rel: "HAD_ENCOUNTER" },
+      { from: "e1", to: "i1", rel: "AT_INSTITUTION" }, { from: "e2", to: "i2", rel: "AT_INSTITUTION" },
+      { from: "e3", to: "i3", rel: "AT_INSTITUTION" },
+      { from: "p1", to: "m1", rel: "PRESCRIBED" }, { from: "p3", to: "m2", rel: "PRESCRIBED" },
+      { from: "p2", to: "m3", rel: "PRESCRIBED" },
+      { from: "m1", to: "m2", rel: "INTERACTS_WITH" },
+      { from: "p1", to: "c1", rel: "HAS_CONDITION" }, { from: "p2", to: "c2", rel: "HAS_CONDITION" },
+      { from: "p1", to: "a1", rel: "HAS_ALLERGY" },
+      { from: "p2", to: "l1", rel: "HAS_LAB" },
+    ],
+    medications: [
+      { name: "Lisinopril", dose: "10mg", status: "active", institution: "Northwestern Memorial", date: "2024-01-15", flag: "⚠️ Interacts with K-Supplement" },
+      { name: "K-Supplement", dose: "20mEq", status: "active", institution: "DePaul Clinic", date: "2023-06-10", flag: "⚠️ Interacts with Lisinopril" },
+      { name: "Metformin", dose: "500mg", status: "active", institution: "Rush University Med", date: "2022-11-03", flag: null },
+    ],
+    allergies: [{ substance: "Penicillin", reaction: "Anaphylaxis", severity: "HIGH" }],
+    conditions: [{ name: "Hypertension", icd: "I10", onset: "2018-03-01" }, { name: "Type 2 Diabetes", icd: "E11.9", onset: "2021-07-14" }],
+    labs: [{ name: "HbA1c", value: "7.8%", date: "2024-01-15", flag: "⬆ Elevated" }, { name: "Creatinine", value: "1.1 mg/dL", date: "2024-01-15", flag: null }],
+    encounters: 11, institutions: 3,
+  },
+  {
+    id: "maria_garcia_002", name: "Maria R. Garcia", dob: "1965-09-30", gender: "F", zip: "60622",
+    nodes: [
+      { id: "p1", label: "Patient", name: "Maria R. Garcia", institution: "Mercy Hospital", mrn: "MRN-202", x: 400, y: 280 },
+      { id: "e1", label: "Encounter", name: "Cardiology Visit", date: "2024-02-10", type: "Outpatient", x: 220, y: 180 },
+      { id: "i1", label: "Institution", name: "Mercy Hospital", x: 100, y: 100 },
+      { id: "m1", label: "Medication", name: "Warfarin 5mg", status: "active", x: 300, y: 450 },
+      { id: "m2", label: "Medication", name: "Aspirin 81mg", status: "active", x: 500, y: 450 },
+      { id: "c1", label: "Condition", name: "Atrial Fibrillation", icd: "I48.91", x: 600, y: 180 },
+      { id: "a1", label: "Allergy", name: "Sulfa Drugs", reaction: "Rash", severity: "MODERATE", x: 700, y: 350 },
+    ],
+    edges: [
+      { from: "p1", to: "e1", rel: "HAD_ENCOUNTER" }, { from: "e1", to: "i1", rel: "AT_INSTITUTION" },
+      { from: "p1", to: "m1", rel: "PRESCRIBED" }, { from: "p1", to: "m2", rel: "PRESCRIBED" },
+      { from: "m1", to: "m2", rel: "INTERACTS_WITH" },
+      { from: "p1", to: "c1", rel: "HAS_CONDITION" }, { from: "p1", to: "a1", rel: "HAS_ALLERGY" },
+    ],
+    medications: [
+      { name: "Warfarin", dose: "5mg", status: "active", institution: "Mercy Hospital", date: "2024-02-10", flag: "⚠️ Interacts with Aspirin — bleeding risk" },
+      { name: "Aspirin", dose: "81mg", status: "active", institution: "Mercy Hospital", date: "2024-02-10", flag: null },
+    ],
+    allergies: [{ substance: "Sulfa Drugs", reaction: "Rash", severity: "MODERATE" }],
+    conditions: [{ name: "Atrial Fibrillation", icd: "I48.91", onset: "2022-01-20" }],
+    labs: [{ name: "INR", value: "2.4", date: "2024-02-10", flag: "✓ Therapeutic range" }],
+    encounters: 5, institutions: 2,
+  },
+];
+
+const NODE_COLORS = {
+  Patient:     { bg: "#00d4ff", text: "#000" },
+  Encounter:   { bg: "#a78bfa", text: "#fff" },
+  Institution: { bg: "#f59e0b", text: "#000" },
+  Medication:  { bg: "#34d399", text: "#000" },
+  Condition:   { bg: "#f87171", text: "#fff" },
+  Allergy:     { bg: "#fb923c", text: "#000" },
+  Lab:         { bg: "#60a5fa", text: "#000" },
+};
+
+const EDGE_COLORS = {
+  SAME_AS:         "#00d4ff",
+  HAD_ENCOUNTER:   "#a78bfa",
+  AT_INSTITUTION:  "#f59e0b",
+  PRESCRIBED:      "#34d399",
+  INTERACTS_WITH:  "#ef4444",
+  HAS_CONDITION:   "#f87171",
+  HAS_ALLERGY:     "#fb923c",
+  HAS_LAB:         "#60a5fa",
+};
+
+// ── AI QA Responses ─────────────────────────────────────────────────────────
+const CANNED = [
+  { q: /medication|drug|prescribed/i, a: (p) => {
+    const meds = p.medications.map(m => `**${m.name} ${m.dose}** — ${m.institution}${m.flag ? `\n  › ${m.flag}` : ""}`).join("\n");
+    return `Found **${p.medications.length} active medications** across ${p.institutions} institutions:\n\n${meds}`;
+  }},
+  { q: /allerg/i, a: (p) => {
+    const al = p.allergies.map(a => `**${a.substance}** → ${a.reaction} (${a.severity})`).join("\n");
+    return `Documented allergies for this patient:\n\n${al}\n\n⚠️ Ensure allergy flags are propagated across all treating institutions.`;
+  }},
+  { q: /condition|diagnos/i, a: (p) => {
+    const co = p.conditions.map(c => `**${c.name}** (${c.icd}) — onset ${c.onset}`).join("\n");
+    return `Active conditions:\n\n${co}`;
+  }},
+  { q: /lab|result|test/i, a: (p) => {
+    const lb = p.labs.map(l => `**${l.name}**: ${l.value} (${l.date}) ${l.flag || ""}`).join("\n");
+    return `Lab results on record:\n\n${lb}`;
+  }},
+  { q: /encounter|visit|hospital/i, a: (p) =>
+    `This patient has **${p.encounters} documented encounters** across **${p.institutions} institutions**. Cross-institution identity resolved via SAME_AS graph edges using probabilistic MPI matching.`
+  },
+  { q: /interact|conflict|safe/i, a: (p) => {
+    const flags = p.medications.filter(m => m.flag);
+    if (!flags.length) return "✅ No drug interactions detected across linked records.";
+    return `⚠️ **${flags.length} drug interaction(s) detected:**\n\n${flags.map(f => `• ${f.name}: ${f.flag}`).join("\n")}`;
+  }},
+];
+
+function getAIResponse(question, patient) {
+  const match = CANNED.find(c => c.q.test(question));
+  if (match) return match.a(patient);
+  return `Graph traversal complete across ${patient.institutions} institutions and ${patient.encounters} encounters.\n\nNo specific records matched your query. Try asking about **medications**, **allergies**, **conditions**, **lab results**, or **drug interactions**.`;
+}
+
+// ── Graph Canvas ─────────────────────────────────────────────────────────────
+function GraphCanvas({ patient, highlightNodes }) {
+  const svgRef = useRef(null);
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const isDragging = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+
+  const { nodes, edges } = patient;
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    setZoom(z => Math.min(2.5, Math.max(0.4, z - e.deltaY * 0.001)));
+  };
+
+  const onMouseDown = (e) => {
+    isDragging.current = true;
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const onMouseMove = (e) => {
+    if (!isDragging.current) return;
+    setPan(p => ({ x: p.x + (e.clientX - lastPos.current.x), y: p.y + (e.clientY - lastPos.current.y) }));
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const onMouseUp = () => { isDragging.current = false; };
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "#050d1a", borderRadius: 12, overflow: "hidden" }}>
+      {/* Grid */}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.08 }}>
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#00d4ff" strokeWidth="0.5"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+      </svg>
+
+      <svg
+        ref={svgRef}
+        style={{ width: "100%", height: "100%", cursor: "grab", userSelect: "none" }}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+      >
+        <defs>
+          {Object.entries(EDGE_COLORS).map(([rel, color]) => (
+            <marker key={rel} id={`arrow-${rel}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill={color} opacity="0.8" />
+            </marker>
+          ))}
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-strong">
+            <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+          {/* Edges */}
+          {edges.map((edge, i) => {
+            const from = nodes.find(n => n.id === edge.from);
+            const to = nodes.find(n => n.id === edge.to);
+            if (!from || !to) return null;
+            const color = EDGE_COLORS[edge.rel] || "#555";
+            const isInteract = edge.rel === "INTERACTS_WITH";
+            const mx = (from.x + to.x) / 2;
+            const my = (from.y + to.y) / 2;
+            return (
+              <g key={i}>
+                <line
+                  x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                  stroke={color}
+                  strokeWidth={isInteract ? 2.5 : 1.2}
+                  strokeOpacity={isInteract ? 0.9 : 0.45}
+                  strokeDasharray={edge.rel === "SAME_AS" ? "6,4" : "none"}
+                  markerEnd={`url(#arrow-${edge.rel})`}
+                  filter={isInteract ? "url(#glow)" : "none"}
+                />
+                <text x={mx} y={my - 4} fill={color} fontSize="8" textAnchor="middle" opacity="0.7" fontFamily="monospace">
+                  {edge.rel}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Nodes */}
+          {nodes.map((node) => {
+            const colors = NODE_COLORS[node.label] || { bg: "#888", text: "#fff" };
+            const isHovered = hoveredNode === node.id;
+            const isHighlighted = highlightNodes && highlightNodes.includes(node.label);
+            const r = node.label === "Patient" ? 28 : node.label === "Institution" ? 22 : 18;
+            return (
+              <g key={node.id}
+                onMouseEnter={() => setHoveredNode(node.id)}
+                onMouseLeave={() => setHoveredNode(null)}
+                style={{ cursor: "pointer" }}
+              >
+                {(isHovered || isHighlighted) && (
+                  <circle cx={node.x} cy={node.y} r={r + 10} fill={colors.bg} opacity="0.15" filter="url(#glow-strong)">
+                    <animate attributeName="r" values={`${r+6};${r+14};${r+6}`} dur="2s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.15;0.05;0.15" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                )}
+                <circle
+                  cx={node.x} cy={node.y} r={r}
+                  fill={colors.bg}
+                  stroke={isHovered ? "#fff" : "transparent"}
+                  strokeWidth={2}
+                  opacity={isHovered ? 1 : 0.88}
+                  filter={isHovered ? "url(#glow-strong)" : "url(#glow)"}
+                />
+                <text x={node.x} y={node.y} textAnchor="middle" dominantBaseline="middle"
+                  fontSize={node.label === "Patient" ? "9" : "7.5"} fontWeight="700"
+                  fill={colors.text} fontFamily="monospace"
+                >
+                  {node.label === "Patient" ? "P" :
+                   node.label === "Encounter" ? "E" :
+                   node.label === "Institution" ? "I" :
+                   node.label === "Medication" ? "Rx" :
+                   node.label === "Condition" ? "Dx" :
+                   node.label === "Allergy" ? "A!" :
+                   node.label === "Lab" ? "L" : "?"}
+                </text>
+                <text x={node.x} y={node.y + r + 10} textAnchor="middle"
+                  fontSize="8.5" fill="#c0d4e8" fontFamily="monospace" fontWeight="500"
+                >
+                  {node.name && node.name.length > 16 ? node.name.slice(0, 14) + "…" : node.name}
+                </text>
+                {isHovered && (
+                  <g transform={`translate(${node.x + r + 6}, ${node.y - 30})`}>
+                    <rect x="0" y="0" width="140" height={Object.keys(node).filter(k => !["id","x","y","label"].includes(k)).length * 14 + 12}
+                      rx="6" fill="#0a1929" stroke={colors.bg} strokeWidth="1" opacity="0.97"/>
+                    {Object.entries(node).filter(([k]) => !["id","x","y","label"].includes(k)).map(([k,v], i) => (
+                      <text key={k} x="8" y={16 + i*14} fontSize="9" fill={i===0 ? colors.bg : "#94a3b8"} fontFamily="monospace">
+                        <tspan fill="#475569">{k}: </tspan>{String(v)}
+                      </text>
+                    ))}
+                  </g>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+
+      {/* Legend */}
+      <div style={{ position: "absolute", bottom: 12, left: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {Object.entries(NODE_COLORS).map(([label, { bg }]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(0,0,0,0.6)", padding: "3px 8px", borderRadius: 20, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: bg }} />
+            {label}
+          </div>
+        ))}
+      </div>
+
+      {/* Zoom controls */}
+      <div style={{ position: "absolute", top: 12, right: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+        {["+", "−", "↺"].map((btn, i) => (
+          <button key={i} onClick={() => {
+            if (i === 0) setZoom(z => Math.min(2.5, z + 0.2));
+            else if (i === 1) setZoom(z => Math.max(0.4, z - 0.2));
+            else { setZoom(1); setPan({ x: 0, y: 0 }); }
+          }} style={{ width: 30, height: 30, borderRadius: 6, background: "rgba(0,212,255,0.1)", border: "1px solid rgba(0,212,255,0.3)", color: "#00d4ff", cursor: "pointer", fontSize: 16, fontWeight: "bold" }}>
+            {btn}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── AI Chat Panel ────────────────────────────────────────────────────────────
+function AIChat({ patient }) {
+  const [messages, setMessages] = useState([
+    { role: "ai", text: `Graph loaded: **${patient.name}** — ${patient.encounters} encounters across ${patient.institutions} institutions resolved via SAME_AS identity graph.\n\nAsk me anything about this patient's cross-institutional history.` }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [highlightNodes, setHighlightNodes] = useState(null);
+  const endRef = useRef(null);
+
+  useEffect(() => { endRef.current && endRef.current.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const QUICK = ["What medications is this patient on?", "Any drug interactions?", "Show allergies", "Recent lab results", "How many encounters?"];
+
+  const send = async (q) => {
+    const question = q || input.trim();
+    if (!question) return;
+    setInput("");
+    setMessages(m => [...m, { role: "user", text: question }]);
+    setLoading(true);
+
+    if (/medication|drug|prescribed/i.test(question)) setHighlightNodes(["Medication"]);
+    else if (/allerg/i.test(question)) setHighlightNodes(["Allergy"]);
+    else if (/condition|diagnos/i.test(question)) setHighlightNodes(["Condition"]);
+    else if (/lab|result/i.test(question)) setHighlightNodes(["Lab"]);
+    else if (/encounter|visit/i.test(question)) setHighlightNodes(["Encounter", "Institution"]);
+    else setHighlightNodes(null);
+
+    try {
+      const response = await fetch("http://localhost:8000/ai/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: patient.id, question })
+      });
+      const data = await response.json();
+      const aiText = data.answer || getAIResponse(question, patient);
+      setMessages(m => [...m, { role: "ai", text: aiText }]);
+    } catch {
+      setMessages(m => [...m, { role: "ai", text: getAIResponse(question, patient) }]);
+    }
+    setLoading(false);
+  };
+
+  const renderText = (text) => {
+    return text.split("\n").map((line, i) => {
+      const parts = line.split(/(\*\*[^*]+\*\*)/g);
+      return (
+        <span key={i} style={{ display: "block", marginBottom: 2 }}>
+          {parts.map((p, j) =>
+            p.startsWith("**") && p.endsWith("**")
+              ? <strong key={j} style={{ color: "#00d4ff" }}>{p.slice(2, -2)}</strong>
+              : p
+          )}
+        </span>
+      );
+    });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#060f1e", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,212,255,0.15)" }}>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(0,212,255,0.1)", display: "flex", alignItems: "center", gap: 10, background: "rgba(0,212,255,0.04)" }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#00d4ff", boxShadow: "0 0 10px #00d4ff" }} />
+        <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#00d4ff", fontSize: 13, letterSpacing: "0.05em" }}>ROCKETRIDE AI</span>
+        <span style={{ marginLeft: "auto", fontSize: 10, color: "#475569", fontFamily: "monospace" }}>Graph Intelligence Layer</span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "85%",
+              padding: "10px 14px",
+              borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+              background: msg.role === "user" ? "rgba(0,212,255,0.15)" : "rgba(255,255,255,0.04)",
+              border: msg.role === "user" ? "1px solid rgba(0,212,255,0.3)" : "1px solid rgba(255,255,255,0.06)",
+              fontSize: 12.5, lineHeight: 1.6, color: msg.role === "user" ? "#e2e8f0" : "#94a3b8",
+              fontFamily: "monospace"
+            }}>
+              {msg.role === "ai" && <div style={{ fontSize: 9, color: "#00d4ff", marginBottom: 5, letterSpacing: "0.1em" }}>ROCKETRIDE AI · NEO4J TRAVERSAL</div>}
+              {renderText(msg.text)}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: "flex", gap: 5, padding: "10px 14px" }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#00d4ff", animation: `pulse 1.2s ${i*0.2}s infinite` }} />
+            ))}
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      <div style={{ padding: "8px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+        {QUICK.map((q, i) => (
+          <button key={i} onClick={() => send(q)} style={{
+            padding: "4px 10px", borderRadius: 20, fontSize: 10, fontFamily: "monospace",
+            background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.2)",
+            color: "#64748b", cursor: "pointer", transition: "all 0.2s"
+          }}
+          onMouseEnter={e => { e.target.style.color = "#00d4ff"; e.target.style.borderColor = "rgba(0,212,255,0.5)"; }}
+          onMouseLeave={e => { e.target.style.color = "#64748b"; e.target.style.borderColor = "rgba(0,212,255,0.2)"; }}
+          >{q}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(0,212,255,0.1)", display: "flex", gap: 10 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && send()}
+          placeholder="Ask about this patient's cross-institutional history..."
+          style={{
+            flex: 1, padding: "10px 14px", borderRadius: 8, fontSize: 12, fontFamily: "monospace",
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(0,212,255,0.2)",
+            color: "#e2e8f0", outline: "none"
+          }}
+        />
+        <button onClick={() => send()} style={{
+          padding: "10px 18px", borderRadius: 8, background: "rgba(0,212,255,0.15)",
+          border: "1px solid rgba(0,212,255,0.4)", color: "#00d4ff",
+          fontFamily: "monospace", fontWeight: 700, fontSize: 12, cursor: "pointer"
+        }}>▶</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Clinical Cards ───────────────────────────────────────────────────────────
+function ClinicalCards({ patient }) {
+  const [tab, setTab] = useState("meds");
+  const TABS = [
+    { id: "meds", label: "Rx Medications" },
+    { id: "allergies", label: "Allergies" },
+    { id: "conditions", label: "Conditions" },
+    { id: "labs", label: "Labs" },
+  ];
+
+  return (
+    <div style={{ background: "#060f1e", borderRadius: 12, border: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            flex: 1, padding: "10px 4px", fontSize: 11, fontFamily: "monospace", fontWeight: 600,
+            background: tab === t.id ? "rgba(0,212,255,0.1)" : "transparent",
+            border: "none", borderBottom: tab === t.id ? "2px solid #00d4ff" : "2px solid transparent",
+            color: tab === t.id ? "#00d4ff" : "#475569", cursor: "pointer", transition: "all 0.2s"
+          }}>{t.label}</button>
+        ))}
+      </div>
+      <div style={{ padding: 14, maxHeight: 220, overflowY: "auto" }}>
+        {tab === "meds" && patient.medications.map((m, i) => (
+          <div key={i} style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: `1px solid ${m.flag ? "rgba(251,146,60,0.4)" : "rgba(255,255,255,0.06)"}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#34d399", fontWeight: 700, fontSize: 13, fontFamily: "monospace" }}>{m.name} <span style={{ color: "#64748b", fontSize: 11 }}>{m.dose}</span></span>
+              <span style={{ fontSize: 10, background: "rgba(52,211,153,0.1)", color: "#34d399", padding: "2px 8px", borderRadius: 10, fontFamily: "monospace" }}>active</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 3, fontFamily: "monospace" }}>{m.institution} · {m.date}</div>
+            {m.flag && <div style={{ fontSize: 11, color: "#fb923c", marginTop: 5, fontFamily: "monospace" }}>{m.flag}</div>}
+          </div>
+        ))}
+        {tab === "allergies" && patient.allergies.map((a, i) => (
+          <div key={i} style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: "rgba(251,146,60,0.05)", border: "1px solid rgba(251,146,60,0.3)" }}>
+            <div style={{ color: "#fb923c", fontWeight: 700, fontSize: 13, fontFamily: "monospace" }}>{a.substance}</div>
+            <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 3, fontFamily: "monospace" }}>Reaction: {a.reaction} · Severity: <span style={{ color: a.severity === "HIGH" ? "#ef4444" : "#f59e0b" }}>{a.severity}</span></div>
+          </div>
+        ))}
+        {tab === "conditions" && patient.conditions.map((c, i) => (
+          <div key={i} style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: "rgba(248,113,113,0.05)", border: "1px solid rgba(248,113,113,0.2)" }}>
+            <div style={{ color: "#f87171", fontWeight: 700, fontSize: 13, fontFamily: "monospace" }}>{c.name}</div>
+            <div style={{ color: "#64748b", fontSize: 11, marginTop: 3, fontFamily: "monospace" }}>ICD-10: {c.icd} · Onset: {c.onset}</div>
+          </div>
+        ))}
+        {tab === "labs" && patient.labs.map((l, i) => (
+          <div key={i} style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.15)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#60a5fa", fontWeight: 700, fontSize: 13, fontFamily: "monospace" }}>{l.name}</span>
+              <span style={{ color: "#e2e8f0", fontSize: 13, fontFamily: "monospace" }}>{l.value}</span>
+            </div>
+            <div style={{ color: "#64748b", fontSize: 10, marginTop: 3, fontFamily: "monospace" }}>{l.date} {l.flag && <span style={{ color: "#f59e0b" }}>· {l.flag}</span>}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+function MedGraph() {
+  const [selectedPatient, setSelectedPatient] = useState(PATIENTS[0]);
+  const [view, setView] = useState("graph");
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap');
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #030a14; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; }
+      ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.2); border-radius: 2px; }
+      @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+      @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
+  const stats = [
+    { label: "Encounters", value: selectedPatient.encounters, color: "#a78bfa" },
+    { label: "Institutions", value: selectedPatient.institutions, color: "#f59e0b" },
+    { label: "Active Meds", value: selectedPatient.medications.length, color: "#34d399" },
+    { label: "Allergies", value: selectedPatient.allergies.length, color: "#fb923c" },
+    { label: "Conditions", value: selectedPatient.conditions.length, color: "#f87171" },
+    { label: "Drug Flags", value: selectedPatient.medications.filter(m => m.flag).length, color: "#ef4444" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#030a14", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ padding: "14px 28px", borderBottom: "1px solid rgba(0,212,255,0.12)", display: "flex", alignItems: "center", gap: 20, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 100 }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 22, color: "#00d4ff", letterSpacing: "-0.02em" }}>
+            Med<span style={{ color: "#fff" }}>Graph</span>
+          </div>
+          <div style={{ fontSize: 9, color: "#334155", fontFamily: "monospace", letterSpacing: "0.15em" }}>GRAPH-POWERED INTEROPERABILITY · NEO4J</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginLeft: 30 }}>
+          {PATIENTS.map(p => (
+            <button key={p.id} onClick={() => setSelectedPatient(p)} style={{
+              padding: "7px 14px", borderRadius: 8, fontSize: 11, fontFamily: "monospace", fontWeight: 600,
+              background: selectedPatient.id === p.id ? "rgba(0,212,255,0.15)" : "rgba(255,255,255,0.04)",
+              border: selectedPatient.id === p.id ? "1px solid rgba(0,212,255,0.5)" : "1px solid rgba(255,255,255,0.08)",
+              color: selectedPatient.id === p.id ? "#00d4ff" : "#64748b", cursor: "pointer"
+            }}>{p.name}</button>
+          ))}
+        </div>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {[["graph","◈ Graph"], ["query","⌘ Query Log"], ["schema","⊞ Schema"]].map(([v, label]) => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 11, fontFamily: "monospace",
+              background: view === v ? "rgba(0,212,255,0.12)" : "transparent",
+              border: view === v ? "1px solid rgba(0,212,255,0.4)" : "1px solid rgba(255,255,255,0.06)",
+              color: view === v ? "#00d4ff" : "#475569", cursor: "pointer"
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats Bar */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        {stats.map((s, i) => (
+          <div key={i} style={{ flex: 1, padding: "10px 0", textAlign: "center", borderRight: i < stats.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", background: "rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: s.color, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 9, color: "#334155", fontFamily: "monospace", marginTop: 3, letterSpacing: "0.08em" }}>{s.label.toUpperCase()}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: 20, display: "flex", gap: 16, minHeight: 0 }}>
+        {view === "graph" && (
+          <>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+              <div style={{ flex: "0 0 420px", position: "relative" }}>
+                <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, fontFamily: "monospace", fontSize: 10, color: "#334155", letterSpacing: "0.1em" }}>
+                  NEO4J GRAPH · {selectedPatient.nodes.length} NODES · {selectedPatient.edges.length} EDGES
+                </div>
+                <div style={{ height: 420 }}>
+                  <GraphCanvas patient={selectedPatient} />
+                </div>
+              </div>
+              <ClinicalCards patient={selectedPatient} />
+            </div>
+
+            <div style={{ width: 380, flexShrink: 0 }}>
+              <AIChat patient={selectedPatient} key={selectedPatient.id} />
+            </div>
+          </>
+        )}
+
+        {view === "query" && (
+          <div style={{ flex: 1, fontFamily: "monospace" }}>
+            <div style={{ fontSize: 13, color: "#00d4ff", marginBottom: 16 }}>CYPHER QUERY EXAMPLES — Natural Language → Graph</div>
+            {[
+              { q: "What medications is this patient on across all systems?", cypher: `MATCH (p:Patient)-[:SAME_AS*0..1]-(p2:Patient)\n-[:PRESCRIBED]->(m:Medication)\nWHERE p.id = "${selectedPatient.id}"\nAND m.status = "active"\nRETURN m.name, m.dosage, m.institution\nORDER BY m.date DESC` },
+              { q: "Has this patient ever had an adverse reaction?", cypher: `MATCH (p:Patient)-[:SAME_AS*0..1]-(p2:Patient)\n-[:HAS_ALLERGY]->(a:Allergy)\nWHERE p.id = "${selectedPatient.id}"\nRETURN a.substance, a.reaction, a.severity\nORDER BY a.severity DESC` },
+              { q: "Which institutions has this patient visited?", cypher: `MATCH (p:Patient)-[:SAME_AS*0..1]-(p2:Patient)\n-[:HAD_ENCOUNTER]->(e:Encounter)\n-[:AT_INSTITUTION]->(i:Institution)\nWHERE p.id = "${selectedPatient.id}"\nRETURN DISTINCT i.name, i.location, count(e) as visits\nORDER BY visits DESC` },
+              { q: "Are there any drug interactions?", cypher: `MATCH (p:Patient)-[:SAME_AS*0..1]-(p2:Patient)\n-[:PRESCRIBED]->(m1:Medication)\n-[:INTERACTS_WITH]->(m2:Medication)\nWHERE p.id = "${selectedPatient.id}"\nRETURN m1.name, m2.name, "INTERACTION DETECTED" as alert` },
+            ].map((item, i) => (
+              <div key={i} style={{ marginBottom: 20, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ padding: "10px 16px", background: "rgba(0,212,255,0.06)", fontSize: 12, color: "#94a3b8" }}>
+                  <span style={{ color: "#00d4ff" }}>↳</span> {item.q}
+                </div>
+                <pre style={{ padding: "12px 16px", background: "#060f1e", fontSize: 11, color: "#a78bfa", lineHeight: 1.8, overflowX: "auto" }}>
+                  {item.cypher}
+                </pre>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {view === "schema" && (
+          <div style={{ flex: 1, fontFamily: "monospace", fontSize: 12, color: "#64748b" }}>
+            <div style={{ fontSize: 13, color: "#00d4ff", marginBottom: 16 }}>GRAPH SCHEMA — Nodes & Relationships</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {Object.entries(NODE_COLORS).map(([label, { bg }]) => (
+                <div key={label} style={{ padding: 16, borderRadius: 10, background: "#060f1e", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: bg }} />
+                    <span style={{ color: bg, fontWeight: 700, fontSize: 13 }}>({label})</span>
+                  </div>
+                  <div style={{ fontSize: 10, lineHeight: 2, color: "#334155" }}>
+                    {label === "Patient" && ["id", "name", "DOB", "gender", "zip", "MRN"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Encounter" && ["encounter_id", "date", "type", "chief_complaint"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Institution" && ["name", "NPI", "location"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Medication" && ["RxNorm_code", "name", "dosage", "status"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Condition" && ["ICD10_code", "description", "onset_date"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Allergy" && ["substance", "reaction", "severity"].map(f => <div key={f}>├── {f}</div>)}
+                    {label === "Lab" && ["LOINC_code", "value", "unit", "date"].map(f => <div key={f}>├── {f}</div>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 20, padding: 16, borderRadius: 10, background: "#060f1e", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ color: "#f59e0b", fontWeight: 700, marginBottom: 12 }}>EDGE RELATIONSHIPS</div>
+              {Object.entries(EDGE_COLORS).map(([rel, color]) => (
+                <div key={rel} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 40, height: 2, background: color, opacity: 0.7 }} />
+                  <span style={{ color, fontSize: 11 }}>:{rel}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "10px 28px", borderTop: "1px solid rgba(255,255,255,0.04)", display: "flex", justifyContent: "space-between", fontSize: 9, color: "#1e293b", fontFamily: "monospace" }}>
+        <span>MEDGRAPH · NEO4J GRAPH LAYER · ROCKETRIDE AI</span>
+        <span>HIPAA SYNTHETIC DATA ONLY · DEMO BUILD</span>
+        <span>Abdul — DePaul University Health Informatics</span>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<MedGraph />);
+</script>
+</body>
+</html>

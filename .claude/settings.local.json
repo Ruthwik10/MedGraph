@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(docker run:*)",
+      "Bash(export PATH=\"$PATH:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin\")",
+      "Bash(docker info:*)",
+      "Bash(uvicorn main:app --reload --port 8000)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -X POST http://localhost:8000/seed)",
+      "Bash(open /Users/abdulazeez/Downloads/medgraph_v2/frontend/index.html)",
+      "Bash(curl -s -X POST http://localhost:8000/ai/ask -H 'Content-Type: application/json' -d '{\"patient_id\":\"patient-john-smith-001\",\"question\":\"Are there any safety concerns?\"}')"
+    ]
+  }
+}
