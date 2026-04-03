@@ -1,38 +1,119 @@
 # MedGraph — Graph-Powered Patient Interoperability
 
-> Cross-institution patient intelligence using Neo4j + RocketRide AI
+> Built at HackWithChicago 3.0 — Top 5 Finalist
+
+Every year, 1.3 million Americans end up in the emergency room 
+because of preventable medication errors. Not because doctors 
+are careless. Because a patient's records are scattered across 
+different hospitals that don't talk to each other.
+
+MedGraph connects a patient's complete medical history across 
+every hospital they've visited into one intelligent graph — 
+and flags what's going wrong before it causes harm.
 
 ---
 
-## Stack
-- **Neo4j** — graph database (patient journey modeling)
-- **FastAPI** — Python backend
-- **Claude API** — AI clinical reasoning layer
-- **HTML/CSS/JS** — frontend dashboard
+## The Problem
+
+FHIR standardized the format of health data. But it didn't fix 
+the relationships. You can have 10 fully FHIR-compliant systems 
+and still have zero visibility into what happened to that patient 
+at the hospital across the street.
+
+- **1.3 million** preventable ER visits from medication errors annually
+- **$8 billion** wasted on duplicate testing every year
+- **70%** of hospitals report cross-institutional care coordination 
+  as a major unsolved challenge
+
+Format was never the problem. **Relationships were.**
 
 ---
 
-## Setup (Do This First)
+## What We Built
+
+A graph-powered interoperability layer that connects patient 
+records across institutions into one traversable graph — with 
+a natural language AI interface on top so any clinician can 
+just ask:
+
+> *"What medications is this patient on across all systems?"*
+
+MedGraph traverses the connected patient graph, surfaces the 
+answer, and flags conflicts in plain language. At the point 
+of care. Before harm happens.
+
+---
+
+## How It Works
+
+### 1. Graph-Native Patient Identity Resolution
+The same patient exists across hospitals as different records 
+with different MRNs. MedGraph resolves them using probabilistic 
+matching — date of birth, name similarity, phone, ZIP — and 
+writes a `SAME_AS` edge connecting the records across institutions.
+
+### 2. Cross-Institution Graph Traversal
+Every clinical question is a relationship question. Neo4j 
+traverses Patient → Medication → Allergy → Institution nodes 
+in milliseconds — surfacing what no single hospital system 
+could see alone.
+
+### 3. AI Clinical Intelligence (RocketRide AI)
+Three AI-powered features built on top of the graph:
+- **Natural language → Cypher** — clinicians ask in plain English
+- **Conflict explanation** — why it's dangerous, where it came from, 
+  what to do
+- **Anomaly detection** — vitals trending wrong, monitoring gaps, 
+  duplicate medications, allergy conflicts — surfaced automatically 
+  with a risk score
+
+---
+
+## The Demo Story
+
+**Maria Rivera** has COPD and hypertension. She's been seen at:
+
+- **Northwestern Memorial** — prescribed Albuterol + Lisinopril, 
+  documented Penicillin allergy
+- **Rush University** — emergency admission, prescribed Amoxicillin 
+  ⚠️ (a penicillin-class antibiotic)
+
+Rush didn't know about the Penicillin allergy at Northwestern.
+
+MedGraph resolves them as the same patient via `SAME_AS` edge, 
+traverses both records, detects the conflict, and surfaces it 
+in plain language before the prescription is finalized.
+
+**That's the gap. That's the graph. That's MedGraph.**
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Graph Database | Neo4j |
+| AI Reasoning | RocketRide AI / Claude API |
+| Backend | Python + FastAPI |
+| Data Standard | FHIR (Synthetic — HIPAA safe) |
+| Frontend | HTML / CSS / JS |
+
+---
+
+## Setup
 
 ### 1. Neo4j
-Option A — Neo4j Desktop (recommended for demo):
-- Download: https://neo4j.com/download/
-- Create a new project → New Database
-- Set password to: `medgraph123`
+- Download [Neo4j Desktop](https://neo4j.com/download/)
+- Create a new database, set password to `medgraph123`
 - Start the database
 
-Option B — Neo4j Aura (cloud free tier):
-- https://neo4j.com/cloud/platform/aura-graph-database/
-- Create free instance → update .env with your URI + password
-
 ### 2. Backend
-
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
-Create a `.env` file in `/backend`:
+Create `/backend/.env`:
 ```
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
@@ -44,57 +125,35 @@ Start the API:
 uvicorn main:app --reload --port 8000
 ```
 
-### 3. Seed the Database
-
-Once the API is running, call the seed endpoint once:
+### 3. Seed the Graph
 ```bash
 curl -X POST http://localhost:8000/seed
 ```
 
-This loads the two synthetic FHIR bundles into Neo4j and runs identity resolution.
-
 ### 4. Frontend
-
-Just open the file directly in your browser:
-```
-frontend/index.html
-```
+Open `frontend/index.html` directly in your browser.
 
 ---
 
-## Key Endpoints
+## API Endpoints
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
+|---|---|---|
 | GET | `/patients` | All patients across institutions |
 | GET | `/patients/{id}/summary` | Full unified summary |
 | GET | `/patients/{id}/medications` | Medications across all institutions |
 | GET | `/patients/{id}/conflicts` | Allergy-medication conflicts |
 | GET | `/patients/{id}/timeline` | Encounter history |
 | GET | `/patients/{id}/observations` | Vitals and labs |
+| GET | `/patients/{id}/anomalies` | Anomaly detection report |
 | POST | `/ai/ask` | Natural language clinical question |
-| GET | `/ai/conflicts/{id}` | AI conflict explanation |
+| GET | `/ai/anomalies/{id}` | AI anomaly explanation |
 | GET | `/ai/care-gaps/{id}` | AI care gap analysis |
 | POST | `/seed` | Load FHIR data into Neo4j |
 
 ---
 
-## The Demo Flow (8 minutes)
-
-1. Open the app — show the patient list with linked records badge
-2. Select Maria Rivera — point out "2 institutions linked" via SAME_AS edge
-3. Overview tab — show the ⚠️ allergy conflict (Amoxicillin + Penicillin allergy)
-4. Medications tab — show unified list from 2 institutions
-5. Timeline tab — show cross-institution encounter history
-6. Ask AI tab — type: *"Are there any safety concerns I should know about before prescribing?"*
-7. Watch AI traverse the graph and surface the conflict with explanation
-
-**That's the story:** Same patient. Two hospitals. One prescribed a drug she's allergic to — because they didn't know. MedGraph caught it.
-
----
-
 ## Project Structure
-
 ```
 medgraph/
 ├── backend/
@@ -102,24 +161,23 @@ medgraph/
 │   ├── graph.py         # Neo4j queries + identity resolution
 │   ├── fhir_parser.py   # FHIR bundle parser
 │   ├── ai.py            # AI clinical reasoning
+│   ├── anomaly.py       # Anomaly detection engine
 │   └── requirements.txt
 ├── frontend/
 │   └── index.html       # Full dashboard UI
 └── data/
-    ├── patient_a.json   # Northwestern Memorial (Hospital A)
-    └── patient_b.json   # Rush University Medical Center (Hospital B)
+    ├── patient_a.json   # Northwestern Memorial
+    └── patient_b.json   # Rush University Medical Center
 ```
 
 ---
 
-## The Core Demo Story
+## Team
 
-**Maria Rivera** has COPD and hypertension. She's seen at:
-- **Northwestern Memorial** — 2 encounters, prescribed Albuterol + Lisinopril, documented Penicillin allergy
-- **Rush University** — Emergency admission, prescribed Amoxicillin (a penicillin-class antibiotic) ⚠️
+| Name | Role | Background |
+|---|---|---|
+| Abdul Azeez | Clinical Lead & Graph Architect | MS Health Information Technology , DePaul University · Licensed Dentist |
+| Ruthwik | AI & Backend Engineer | MS Artificial Intelligence, Illinois Tech |
+| Devang | Business & Product Strategy | MS Bussines Analytics , Depaul University |
 
-Rush didn't know about the Penicillin allergy documented at Northwestern.
-
-MedGraph resolves them as the same patient via SAME_AS edge, traverses both records, detects the conflict, and surfaces it in plain language.
-
-**That's the gap. That's the graph. That's MedGraph.**
+---
