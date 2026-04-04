@@ -176,7 +176,7 @@ medgraph/
 
 | Name | Role | Background |
 |---|---|---|
-| Abdul Azeez | Clinical Lead & Graph Architect | MS Health Information Technology , DePaul University · Licensed Dentist |
+| Abdul Azeez | Clinical Lead & Graph Architect | MS Health Information Technology , DePaul University |
 | Ruthwik | AI & Backend Engineer | MS Artificial Intelligence, Illinois Tech |
 | Devang | Business & Product Strategy | MS Bussines Analytics , Depaul University |
 
